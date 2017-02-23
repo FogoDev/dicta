@@ -11,8 +11,8 @@
 
 #include <iostream>
 #include <vector>
-#include <cstring>
 #include <future>
+#include <boost/circular_buffer.hpp>
 #include <soundio/soundio.h>
 
 namespace Dicta
@@ -35,10 +35,10 @@ namespace Dicta
         SoundIo* soundIo = nullptr;
         SoundIoDevice* device = nullptr;
         SoundIoInStream* inStream = nullptr;
-        SoundIoRingBuffer* ringBuffer = nullptr;
+        boost::circular_buffer<float>* circularBuffer = nullptr;
         SoundIoFormat format = SoundIoFormatFloat32NE;
         int sampleRate = 0;
-        const int ringBufferDuration = 30;
+        const int circularBufferDuration = 30;
         
         void initializeSoundIoContext();
         void initializeDevice();
@@ -46,16 +46,16 @@ namespace Dicta
         void checkSupportedFormat();
         void initializeInputStream();
         void openInputStream();
-        void initializeRingbuffer();
+        void initializeCircularBuffer();
         void startInputStream();
         
         static void readCallback(SoundIoInStream* inStream, int frameCountMin, int frameCountMax);
         
         public:
-        SoundIoRingBuffer* getRingBuffer() const
-        { return this->ringBuffer; }
+        auto getCircularBuffer() const
+        { return this->circularBuffer; }
         
-        static void readRecordingBuffer(SoundIoRingBuffer* ringBuffer);
+        static void readRecordingBuffer(boost::circular_buffer<float>* circularBuffer);
     };
     
     std::ostream& operator<<(std::ostream& out, const AudioHandler& audioHandler);

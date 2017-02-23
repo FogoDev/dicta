@@ -15,7 +15,7 @@ int main(int argc, char** argv)
     auto future = std::async(
             std::launch::async,
             Dicta::AudioHandler::readRecordingBuffer,
-            audioHandler.getRingBuffer()
+            audioHandler.getCircularBuffer()
     );
     
     std::cerr << audioHandler << std::endl;

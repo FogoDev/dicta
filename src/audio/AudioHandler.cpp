@@ -19,13 +19,13 @@ namespace Dicta
         checkSupportedFormat();
         initializeInputStream();
         openInputStream();
-        initializeRingbuffer();
+        initializeCircularBuffer();
         startInputStream();
     }
     
     AudioHandler::~AudioHandler() noexcept
     {
-        soundio_ring_buffer_destroy(this->ringBuffer);
+        delete this->circularBuffer;
         soundio_instream_destroy(this->inStream);
         soundio_device_unref(this->device);
         soundio_destroy(this->soundIo);
@@ -33,19 +33,13 @@ namespace Dicta
     
     void AudioHandler::readCallback(SoundIoInStream* inStream, int frameCountMin, int frameCountMax)
     {
-        SoundIoRingBuffer* ringBuffer = static_cast<SoundIoRingBuffer*>(inStream->userdata);
+        auto circularBuffer = static_cast<boost::circular_buffer<float>*>(inStream->userdata);
         SoundIoChannelArea* areas;
         int error;
+        float channelsSum = 0;
+        int channelCount = inStream->layout.channel_count;
         
-        char* writePtr = soundio_ring_buffer_write_ptr(ringBuffer);
-        
-        int freeBytes = soundio_ring_buffer_free_count(ringBuffer);
-        int freeCount = freeBytes / inStream->bytes_per_frame;
-        
-        if (freeCount < frameCountMin)
-            throw SoundIoException("Ring buffer overflow.");
-        
-        int writeFrames = freeCount < frameCountMax ? freeCount : frameCountMax;
+        int writeFrames = frameCountMax;
         int framesLeft = writeFrames;
         
         while (framesLeft > 0) {
@@ -57,14 +51,16 @@ namespace Dicta
             if (!frameCount) break;
             
             if (!areas) {
-                std::memset(writePtr, 0, frameCount * inStream->bytes_per_frame);
+                // Due to an overflow there is a hole. Fill the circular buffer with silence for the size of the hole.
+                for (int frame = 0; frame != frameCount; ++frame)
+                    circularBuffer->push_back(0);
             } else {
                 for (int frame = 0; frame != frameCount; ++frame) {
-                    for (int channel = 0; channel != inStream->layout.channel_count; ++channel) {
-                        std::memcpy(writePtr, areas[channel].ptr, inStream->bytes_per_sample);
-                        areas[channel].ptr += areas[channel].step;
-                        writePtr += inStream->bytes_per_sample;
+                    for (int channel = 0; channel != channelCount; ++channel) {
+                        channelsSum += *(reinterpret_cast<float*>(areas[channel].ptr + frame * areas[channel].step));
                     }
+                    circularBuffer->push_back(channelsSum / channelCount);
+                    channelsSum = 0;
                 }
             }
             if (error = soundio_instream_end_read(inStream))
@@ -72,18 +68,20 @@ namespace Dicta
             
             framesLeft -= frameCount;
         }
-        soundio_ring_buffer_advance_write_ptr(ringBuffer, writeFrames * inStream->bytes_per_frame);
     }
     
-    void AudioHandler::readRecordingBuffer(SoundIoRingBuffer* ringBuffer)
+    void AudioHandler::readRecordingBuffer(boost::circular_buffer<float>* circularBuffer)
     {
+        
         while (true) {
-            int fillBytes = soundio_ring_buffer_fill_count(ringBuffer);
-            float* readBuffer = reinterpret_cast<float*>(soundio_ring_buffer_read_ptr(ringBuffer));
-            for (int samples = 0; samples != fillBytes; ++samples) {
-                std::cout << (readBuffer[samples]) << "\n";
+            if (!circularBuffer->empty()) {
+                float checkSampleRange = circularBuffer->front();
+                if (checkSampleRange <= 1 && checkSampleRange >= -1)
+                    std::cout << checkSampleRange << "\n";
+                else
+                    std::cerr << "Error: " << checkSampleRange << std::endl;
+                circularBuffer->pop_front();
             }
-            soundio_ring_buffer_advance_read_ptr(ringBuffer, fillBytes);
         }
     }
     
@@ -150,15 +148,12 @@ namespace Dicta
             throw SoundIoException("Unable to open input stream", error);
     }
     
-    void AudioHandler::initializeRingbuffer()
+    void AudioHandler::initializeCircularBuffer()
     {
-        this->ringBuffer = soundio_ring_buffer_create(this->soundIo,
-                                                      ringBufferDuration * this->inStream->sample_rate
-                                                              * this->inStream->bytes_per_frame);
-        if (!this->ringBuffer)
-            throw SoundIoException::OutOfMemory("ring buffer");
+        this->circularBuffer =
+                new boost::circular_buffer<float>(this->circularBufferDuration * this->inStream->sample_rate);
         
-        this->inStream->userdata = this->ringBuffer;
+        this->inStream->userdata = this->circularBuffer;
     }
     
     void AudioHandler::startInputStream()
