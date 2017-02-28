@@ -10,10 +10,10 @@
 #define DICTA_AUDIOHANDLER_H
 
 #include <iostream>
-#include <vector>
-#include <future>
+#include <array>
 #include <boost/circular_buffer.hpp>
 #include <soundio/soundio.h>
+#include "SoundIoException.h"
 
 namespace Dicta
 {
@@ -47,7 +47,6 @@ namespace Dicta
         void initializeInputStream();
         void openInputStream();
         void initializeCircularBuffer();
-        void startInputStream();
         
         static void readCallback(SoundIoInStream* inStream, int frameCountMin, int frameCountMax);
         
@@ -55,7 +54,10 @@ namespace Dicta
         auto getCircularBuffer() const
         { return this->circularBuffer; }
         
-        static void readRecordingBuffer(boost::circular_buffer<float>* circularBuffer);
+        auto getSampleRate() const
+        { return this->sampleRate; }
+        
+        void startInputStream();
     };
     
     std::ostream& operator<<(std::ostream& out, const AudioHandler& audioHandler);

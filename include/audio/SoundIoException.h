@@ -17,15 +17,15 @@ class SoundIoException : public std::runtime_error
     const std::string messageHeader{"LibSoundIo error:"};
     
     public:
-    SoundIoException(std::string message) : std::runtime_error(messageHeader + message)
+    SoundIoException(const std::string& message) : std::runtime_error(messageHeader + message)
     {}
-    SoundIoException(std::string message, int error) : std::runtime_error(
+    SoundIoException(const std::string& message, int error) : std::runtime_error(
             messageHeader + message + ", " + soundio_strerror(error))
     {}
     
-    static SoundIoException&& OutOfMemory(std::string thing)
+    static SoundIoException&& OutOfMemory(const std::string& thing)
     {
-        SoundIoException e{"Unable to allocate memory to " + thing};
+        SoundIoException e("Unable to allocate memory to " + thing);
         return std::move(e);
     }
 };

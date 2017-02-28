@@ -7,7 +7,6 @@
 \*************************************************************/
 
 #include "../../include/audio/AudioHandler.h"
-#include "../../include/audio/SoundIoException.h"
 
 namespace Dicta
 {
@@ -20,7 +19,6 @@ namespace Dicta
         initializeInputStream();
         openInputStream();
         initializeCircularBuffer();
-        startInputStream();
     }
     
     AudioHandler::~AudioHandler() noexcept
@@ -51,7 +49,7 @@ namespace Dicta
             if (!frameCount) break;
             
             if (!areas) {
-                // Due to an overflow there is a hole. Fill the circular buffer with silence for the size of the hole.
+                // Due to an overflow there is a hole. Fill the circular buffer with silence for the fftSize of the hole.
                 for (int frame = 0; frame != frameCount; ++frame)
                     circularBuffer->push_back(0);
             } else {
@@ -67,21 +65,6 @@ namespace Dicta
                 throw SoundIoException("Unable to end reading", error);
             
             framesLeft -= frameCount;
-        }
-    }
-    
-    void AudioHandler::readRecordingBuffer(boost::circular_buffer<float>* circularBuffer)
-    {
-        
-        while (true) {
-            if (!circularBuffer->empty()) {
-                float checkSampleRange = circularBuffer->front();
-                if (checkSampleRange <= 1 && checkSampleRange >= -1)
-                    std::cout << checkSampleRange << "\n";
-                else
-                    std::cerr << "Error: " << checkSampleRange << std::endl;
-                circularBuffer->pop_front();
-            }
         }
     }
     
@@ -113,7 +96,7 @@ namespace Dicta
     
     void AudioHandler::selectSampleRate()
     {
-        std::vector<int> sampleRates = {48000, 44100, 96000, 24000, 0};
+        std::array<int, 5> sampleRates = {48000, 44100, 96000, 24000, 0};
         
         for (const auto& sampleRate : sampleRates)
             if (soundio_device_supports_sample_rate(this->device, sampleRate)) {
